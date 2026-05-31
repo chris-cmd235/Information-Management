@@ -1,0 +1,331 @@
+from flask import Flask, render_template, jsonify, request
+import mysql.connector
+
+app = Flask(__name__)
+
+#Database connection
+def get_db_connection():
+    return mysql.connector.connect(
+        host='127.0.0.1',
+        user='root',       #Default XAMPP username
+        password='',       #Default XAMPP password is blank
+        database='nail_salon-db' #Database name
+    )
+
+#ROUTES
+@app.route('/')
+def index():
+    return render_template('nail_salon_dashboard.html')
+
+#REST API:Gets all the clients
+@app.route('/api/clients', methods=['GET'])
+def get_clients():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        #Pull records from database
+        cursor.execute("""
+            SELECT Client_ID, Full_Name, Phone, Email_Add, Soc_Med_Acc, Birthday, Address, Favorite_Music, Date_Registered 
+            FROM client
+        """)
+        db_clients = cursor.fetchall()
+        
+        clients = []
+        for c in db_clients:
+            clients.append({
+                'id': c['Client_ID'],
+                'fullName': c['Full_Name'] if c['Full_Name'] else '',
+                'phone': c['Phone'] if c['Phone'] else '',
+                'email': c['Email_Add'] if c['Email_Add'] else '',
+                'socialMedia': c['Soc_Med_Acc'] if c['Soc_Med_Acc'] else '',
+                'birthday': c['Birthday'].strftime('%Y-%m-%d') if c['Birthday'] else '',
+                'address': c['Address'] if c['Address'] else '',
+                'favoriteMusic': c['Favorite_Music'] if c['Favorite_Music'] else '',
+                'dateRegistered': c['Date_Registered'].strftime('%Y-%m-%d') if c['Date_Registered'] else None,
+                'status': 'active' 
+            })
+            
+        cursor.close()
+        conn.close()
+        return jsonify(clients), 200
+    except Exception as err:
+        print(f"\nCRITICAL GET CLIENTS ERROR: {err}\n")
+        return jsonify({'error': str(err)}), 500
+
+#REST API: adds new client
+@app.route('/api/clients', methods=['POST'])
+def add_client():
+    data = request.json
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    sql = """
+        INSERT INTO client (
+            Client_ID, Full_Name, Phone, Email_Add, Soc_Med_Acc, Birthday, Address, Favorite_Music, Date_Registered
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    
+    values = (
+        data['id'],
+        data['fullName'],
+        data['phone'] if data.get('phone') else None,
+        data['email'] if data.get('email') else None,
+        data['socialMedia'] if data.get('socialMedia') else None,
+        data['birthday'] if data.get('birthday') else None,
+        data['address'] if data.get('address') else None,
+        data['favoriteMusic'] if data.get('favoriteMusic') else None,
+        data['dateRegistered']
+    )
+    
+    try:
+        cursor.execute(sql, values)
+        conn.commit()
+        response = jsonify({'message': 'Client saved successfully!'}), 201
+    except mysql.connector.Error as err:
+        print(f"\n DATABASE ERROR: {err}\n")
+        response = jsonify({'error': str(err)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+        
+    return response
+
+#REST API:Updates and existing client(reservation)
+@app.route('/api/clients/<int:client_id>', methods=['PUT'])
+def update_client(client_id):
+    data = request.json
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    sql = """
+        UPDATE client SET 
+            Full_Name = %s, Phone = %s, Email_Add = %s, Soc_Med_Acc = %s, Birthday = %s, Address = %s, Favorite_Music = %s
+        WHERE Client_ID = %s
+    """
+    values = (
+        data['fullName'],
+        data['phone'] if data.get('phone') else None,
+        data['email'] if data.get('email') else None,
+        data['socialMedia'] if data.get('socialMedia') else None,
+        data['birthday'] if data.get('birthday') else None,
+        data['address'] if data.get('address') else None,
+        data['favoriteMusic'] if data.get('favoriteMusic') else None,
+        client_id
+    )
+    
+    try:
+        cursor.execute(sql, values)
+        conn.commit()
+        response = jsonify({'message': 'Client updated successfully!'}), 200
+    except mysql.connector.Error as err:
+        print(f"\nUPDATE DATABASE ERROR: {err}\n")
+        response = jsonify({'error': str(err)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+        
+    return response
+
+#REST API: Deletes a Client
+@app.route('/api/clients/<int:client_id>', methods=['DELETE'])
+def delete_client(client_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        #Warning: If this client has existing appointments or transactions 
+        #MySQL will block the deletion due to Foreign Key constraints
+        cursor.execute("DELETE FROM client WHERE Client_ID = %s", (client_id,))
+        conn.commit()
+        response = jsonify({'message': 'Client deleted successfully!'}), 200
+    except mysql.connector.Error as err:
+        print(f"\n DELETE DATABASE ERROR: {err}\n")
+        #For the foreign Key constraint error
+        response = jsonify({'error': str(err)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+    return response
+
+
+#REST API:Save a New Visit
+@app.route('/api/visits', methods=['POST'])
+def add_visit():
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        conn.start_transaction()
+        
+        #0.STRICT TYPE UNWRAPPING(prevents the 'dict' crash)
+        raw_client = data.get('clientId')
+        client_id = raw_client.get('id') if isinstance(raw_client, dict) else raw_client
+        
+        date_str = data.get('date')#expected format: YYYY-MM-DD
+        
+        if not client_id or not date_str:
+            return jsonify({'error': 'Missing client ID or date'}), 400
+        
+        #3.HANDLE DESIGNS
+        designs = data.get('designs') or {}
+        design_desc = "N/A"
+        
+        all_design = designs.get('all')
+        all_design_str = all_design.get('value') if isinstance(all_design, dict) else all_design
+        
+        if all_design_str and str(all_design_str).strip():
+            design_desc = str(all_design_str).strip()
+        elif any(designs.values()):
+            design_desc = "N/A"
+            
+        cursor.execute("SELECT Design_ID FROM design_inspo WHERE Design_Description = %s", (design_desc,))
+        design_row = cursor.fetchone()
+        if design_row:
+            design_id = design_row['Design_ID']
+        else:
+            cursor.execute("INSERT INTO design_inspo (Design_Description) VALUES (%s)", (design_desc,))
+            design_id = cursor.lastrowid
+
+        #CREATE APPOINTMENT
+        cursor.execute("""
+            INSERT INTO appointment (Client_ID, Design_ID, Appointment_Date, Status) 
+            VALUES (%s, %s, %s, 'Completed')
+        """, (client_id, design_id, date_str))
+        appointment_id = cursor.lastrowid
+
+        #2. UPDATE NAIL SIZES
+        nail_sizes = data.get('nailSizes') or {}
+        
+        #Helper function to unwrap size objects if they arrive as dicts
+        def get_size(hand_dict, finger):
+            val = hand_dict.get(finger)
+            return val.get('value') if isinstance(val, dict) else val
+
+        l_sizes = nail_sizes.get('left') or {}
+        l_thumb = get_size(l_sizes, 'thumb')
+        l_index = get_size(l_sizes, 'index')
+        l_middle = get_size(l_sizes, 'middle')
+        l_ring = get_size(l_sizes, 'ring')
+        l_pinky = get_size(l_sizes, 'pinky')
+        
+        r_sizes = nail_sizes.get('right') or {}
+        r_thumb = get_size(r_sizes, 'thumb')
+        r_index = get_size(r_sizes, 'index')
+        r_middle = get_size(r_sizes, 'middle')
+        r_ring = get_size(r_sizes, 'ring')
+        r_pinky = get_size(r_sizes, 'pinky')
+        
+        if any([l_thumb, l_index, l_middle, l_ring, l_pinky, r_thumb, r_index, r_middle, r_ring, r_pinky]):
+            cursor.execute("SELECT Nail_Size_ID FROM nail_size WHERE Client_ID = %s", (client_id,))
+            existing_size = cursor.fetchone()
+            
+            if existing_size:
+                cursor.execute("""
+                    UPDATE nail_size 
+                    SET L_Thumb_Size=%s, L_Index_Size=%s, L_Middle_Size=%s, L_Ring_Size=%s, L_Pinky_Size=%s,
+                        R_Thumb_Size=%s, R_Index_Size=%s, R_Middle_Size=%s, R_Ring_Size=%s, R_Pinky_Size=%s
+                    WHERE Client_ID=%s
+                """, (l_thumb, l_index, l_middle, l_ring, l_pinky, 
+                      r_thumb, r_index, r_middle, r_ring, r_pinky, client_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO nail_size 
+                    (Client_ID, L_Thumb_Size, L_Index_Size, L_Middle_Size, L_Ring_Size, L_Pinky_Size, 
+                     R_Thumb_Size, R_Index_Size, R_Middle_Size, R_Ring_Size, R_Pinky_Size)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (client_id, l_thumb, l_index, l_middle, l_ring, l_pinky, 
+                      r_thumb, r_index, r_middle, r_ring, r_pinky))
+
+       #1.Handle services, transaction and history
+        selected_services = data.get('services') or []
+        for srv in selected_services:
+            srv_name = srv.get('name') if isinstance(srv, dict) else srv
+            
+            cursor.execute("SELECT Service_ID, Base_Price FROM service WHERE Service_Name = %s", (srv_name,))
+            srv_row = cursor.fetchone()
+            
+            if srv_row:
+                srv_id = srv_row['Service_ID']
+                
+                cursor.execute("""
+                    INSERT INTO transaction (Appointment_ID, Client_ID, Service_ID, Transaction_Date, Total_Amount, Status)
+                    VALUES (%s, %s, %s, %s, %s, 'Completed')
+                """, (appointment_id, client_id, srv_id, date_str, srv_row['Base_Price']))
+
+                cursor.execute("""
+                    INSERT INTO history (Client_ID, Service_ID, Visit_Date)
+                    VALUES (%s, %s, %s)
+                """, (client_id, srv_id, date_str))
+
+        conn.commit()
+        return jsonify({'message': 'Visit integrated with full relational mapping!'}), 201
+
+    except Exception as e:
+        conn.rollback()
+        print(f"\nSQL COMMIT ERROR: {e}\n")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+#Dashboard Analytics Summary
+@app.route('/api/analytics', methods=['GET'])
+def get_analytics():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # 1. Calculate Monthly Revenue (Sum from transactions)
+        cursor.execute("""
+            SELECT SUM(Total_Amount) AS monthly_revenue 
+            FROM transaction 
+            WHERE Status = 'Completed' 
+              AND MONTH(Transaction_Date) = MONTH(CURRENT_DATE())
+              AND YEAR(Transaction_Date) = YEAR(CURRENT_DATE())
+        """)
+        rev_res = cursor.fetchone()
+        monthly_revenue = float(rev_res['monthly_revenue']) if rev_res and rev_res['monthly_revenue'] else 0.0
+        
+        #2.Count Cancellations(Count from appointments)
+        cursor.execute("SELECT COUNT(*) AS cancel_count FROM appointment WHERE Status = 'Cancelled'")
+        cancel_res = cursor.fetchone()
+        cancel_count = cancel_res['cancel_count'] if cancel_res else 0
+        
+        #3.Total Visits(Count from history)
+        cursor.execute("SELECT COUNT(Visit_ID) AS visit_count FROM history")
+        visit_res = cursor.fetchone()
+        total_visits = visit_res['visit_count'] if visit_res else 0
+
+        #4.Top 3 Designs(Excluding "N/A" for multiple nail designs)
+        cursor.execute("""
+            SELECT d.Design_Description AS name, COUNT(a.Appointment_ID) AS count
+            FROM appointment a
+            JOIN design_inspo d ON a.Design_ID = d.Design_ID
+            WHERE a.Status = 'Completed' AND d.Design_Description != 'N/A'
+            GROUP BY d.Design_ID, d.Design_Description
+            ORDER BY count DESC
+            LIMIT 3
+        """)
+        top_designs = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'monthlyRevenue': monthly_revenue,
+            'cancellations': cancel_count,
+            'totalVisits': total_visits,
+            'topDesigns': top_designs
+        }), 200
+        
+    except Exception as e:
+        print(f"\nANALYTICS ENGINE CRASH: {e}\n")
+        return jsonify({'error': str(e)}), 500
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
