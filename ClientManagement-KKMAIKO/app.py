@@ -1,5 +1,9 @@
 from flask import Flask, render_template, jsonify, request
 import mysql.connector
+import os
+import base64
+import uuid
+import re
 
 app = Flask(__name__)
 
@@ -241,25 +245,69 @@ def add_visit():
         if not client_id or not date_str:
             return jsonify({'error': 'Missing client ID or date'}), 400
         
-        #3.HANDLE DESIGNS
+        #3. DESIGNS & IMAGE UPLOAD
         designs = data.get('designs') or {}
-        design_desc = "N/A"
+        image_b64 = data.get('imageBase64')
+        image_file_path = None
         
+        #Design description as filename
         all_design = designs.get('all')
         all_design_str = all_design.get('value') if isinstance(all_design, dict) else all_design
         
         if all_design_str and str(all_design_str).strip():
             design_desc = str(all_design_str).strip()
-        elif any(designs.values()):
+        else:
             design_desc = "N/A"
             
-        cursor.execute("SELECT Design_ID FROM design_inspo WHERE Design_Description = %s", (design_desc,))
-        design_row = cursor.fetchone()
-        if design_row:
-            design_id = design_row['Design_ID']
-        else:
-            cursor.execute("INSERT INTO design_inspo (Design_Description) VALUES (%s)", (design_desc,))
+        #Save the image file 
+        if image_b64:
+            try:
+                #Strip the base64 metadata header to get the pure file string
+                header, encoded = image_b64.split(",", 1)
+                ext = header.split(";")[0].split("/")[1] 
+                
+                #Replaces spaces and weird characters with underscores
+                safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', design_desc).strip('_')
+                
+                #Incase invalid or missing name
+                if not safe_name or safe_name == 'N_A':
+                    safe_name = f"design_{uuid.uuid4().hex[:8]}"
+                    
+                filename = f"{safe_name}.{ext}"
+                upload_dir = os.path.join(app.root_path, 'static', 'uploads')
+                os.makedirs(upload_dir, exist_ok=True)
+                
+                filepath = os.path.join(upload_dir, filename)
+                
+                #Prevent overwriting
+                if os.path.exists(filepath):
+                    filename = f"{safe_name}_{uuid.uuid4().hex[:6]}.{ext}"
+                    filepath = os.path.join(upload_dir, filename)
+                
+                with open(filepath, "wb") as fh:
+                    fh.write(base64.b64decode(encoded))
+                
+                image_file_path = f"/static/uploads/{filename}"
+            except Exception as img_e:
+                print(f"IMAGE UPLOAD ERROR: {img_e}")
+
+        #Save to Database
+        #Creates a new record
+        if image_file_path:
+            cursor.execute("""
+                INSERT INTO design_inspo (Design_Description, Image_File_Path) 
+                VALUES (%s, %s)
+            """, (design_desc, image_file_path))
             design_id = cursor.lastrowid
+        else:
+            #If no picture is uploaded, reuse existing text description entries to prevent database bloat
+            cursor.execute("SELECT Design_ID FROM design_inspo WHERE Design_Description = %s", (design_desc,))
+            design_row = cursor.fetchone()
+            if design_row:
+                design_id = design_row['Design_ID']
+            else:
+                cursor.execute("INSERT INTO design_inspo (Design_Description) VALUES (%s)", (design_desc,))
+                design_id = cursor.lastrowid
 
         #CREATE APPOINTMENT
         cursor.execute("""

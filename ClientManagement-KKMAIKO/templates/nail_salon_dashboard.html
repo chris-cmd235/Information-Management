@@ -1491,10 +1491,9 @@ function saveNailSizesAndNext() {
   showDesignEntry();
 }
 
-let designMode = 'all';
-
 function showDesignEntry() {
-  designMode = 'all';
+  flowData.imageBase64 = null; 
+
   openModal(`
     <div class="modal-header">
       <div class="modal-title">Nail Design</div>
@@ -1502,24 +1501,19 @@ function showDesignEntry() {
     </div>
     <div class="modal-body">
       ${stepIndicator(3)}
-      <div class="design-toggle">
-        <div class="toggle-btn active" id="design-mode-all" onclick="setDesignMode('all')">One design for all nails</div>
-        <div class="toggle-btn" id="design-mode-per" onclick="setDesignMode('per')">One design per nail</div>
-      </div>
-      <div id="design-all-wrap" class="design-all-input">
+      <div class="design-all-input">
         <div class="form-group">
           <label class="form-label">Design Name</label>
           <input class="form-control" id="design-all-input" placeholder="e.g. French Tips, Ombre Pink, Floral Art…">
         </div>
-      </div>
-      <div id="design-per-wrap" style="display:none">
-        <div class="nail-hand-label">Left Hand</div>
-        <div class="design-per-nail" style="margin-bottom:12px">
-          ${['LT','LI','LM','LR','LP'].map((k,i)=>`<div class="design-nail-group"><label>${['Thumb','Index','Middle','Ring','Pinky'][i]}</label><input id="design-${k}" placeholder="Design…"></div>`).join('')}
-        </div>
-        <div class="nail-hand-label">Right Hand</div>
-        <div class="design-per-nail">
-          ${['RT','RI','RM','RR','RP'].map((k,i)=>`<div class="design-nail-group"><label>${['Thumb','Index','Middle','Ring','Pinky'][i]}</label><input id="design-${k}" placeholder="Design…"></div>`).join('')}
+        
+        <div class="form-group" style="margin-top: 1rem;">
+          <label class="form-label">Reference Image (Optional)</label>
+          <input type="file" class="form-control" id="design-image-input" accept="image/*" style="padding: 6px;">
+          
+          <div id="image-preview" style="margin-top: 10px; border-radius: var(--radius-sm); overflow: hidden; display: none;">
+            <img id="preview-img" src="" style="width: 100%; height: auto; max-height: 250px; object-fit: contain; background: var(--parchment);">
+          </div>
         </div>
       </div>
     </div>
@@ -1528,52 +1522,52 @@ function showDesignEntry() {
       <button class="btn btn-primary" onclick="saveVisitAndFinish()">Finish & Save ✓</button>
     </div>
   `);
-}
 
-function setDesignMode(mode) {
-  designMode = mode;
-  document.getElementById('design-mode-all').className = 'toggle-btn' + (mode==='all'?' active':'');
-  document.getElementById('design-mode-per').className = 'toggle-btn' + (mode==='per'?' active':'');
-  document.getElementById('design-all-wrap').style.display = mode==='all'?'block':'none';
-  document.getElementById('design-per-wrap').style.display = mode==='per'?'block':'none';
+  const imgInput = document.getElementById('design-image-input');
+  if (imgInput) {
+    imgInput.addEventListener('change', function() {
+      const file = this.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('preview-img').src = e.target.result;
+          document.getElementById('image-preview').style.display = 'block';
+          flowData.imageBase64 = e.target.result;
+        }
+        reader.readAsDataURL(file);
+      } else {
+        document.getElementById('image-preview').style.display = 'none';
+        flowData.imageBase64 = null;
+      }
+    });
+  }
 }
 
 async function saveVisitAndFinish() {
   let designs = {};
   
-  // 1. SAFE DOM EXTRACTION: Prevents TypeError crashes if inputs are hidden/missing
-  if (designMode === 'all') {
-    const el = document.getElementById('design-all-input');
-    if (el) {
-      const v = el.value.trim();
-      if (v) designs.all = v;
-    }
-  } else {
-    FINGER_SHORT.forEach(k => {
-      const el = document.getElementById(`design-${k}`);
-      if (el) {
-        const v = el.value.trim();
-        if (v) designs[k] = v;
-      }
-    });
+  const el = document.getElementById('design-all-input');
+  if (el) {
+    const v = el.value.trim();
+    if (v) designs.all = v;
   }
   flowData.designs = designs;
 
-  // 2. Build the payload
   const visit = {
-    // If clientId is an object, grab its ID. Otherwise, use it normally.
     clientId: typeof flowData.clientId === 'object' && flowData.clientId !== null ? flowData.clientId.id : flowData.clientId,
     
     date: new Date().toISOString().split('T')[0], 
     
-    // Maps through services and ensures they are plain strings, not objects
     services: (flowData.selectedServices || []).map(s => typeof s === 'object' ? s.name : s),
     
     nailSizes: flowData.nailSizes || {},
-    designs: flowData.designs || {}
+    designs: flowData.designs || {},
+    
+    //Attach the processed Base64 image
+    imageBase64: flowData.imageBase64 || null 
   };
 
-  // 3. PRE-FLIGHT CHECK: Stop and warn if Client ID is somehow missing
+  //3. PRE-FLIGHT CHECK
   if (!visit.clientId) {
       showToast('Error: No client selected!', 'error');
       console.error("Pre-flight Error: clientId is missing from flowData");
@@ -1587,7 +1581,7 @@ async function saveVisitAndFinish() {
         body: JSON.stringify(visit)
     });
     
-    // 4. SMART ERROR CATCHING: Actually read the Python error if it fails
+    //4. ERROR CATCHING
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Server rejected the save request');
@@ -1596,13 +1590,12 @@ async function saveVisitAndFinish() {
     await fetchDashboardData(); 
     
     closeModal();
-    showToast('Visit saved successfully! 💅', 'success');
+    showToast('Visit saved successfully!', 'success');
     
     setTimeout(() => openClientDetail(flowData.clientId), 400);
     
   } catch (error) {
     console.error("Database Save Error:", error);
-    // Display the EXACT backend error on the screen so you don't have to guess
     showToast(`Error: ${error.message}`, 'error');
   }
 }
