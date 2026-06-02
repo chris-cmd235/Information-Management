@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 02, 2026 at 04:25 PM
+-- Generation Time: Jun 02, 2026 at 05:30 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -60,12 +60,14 @@ INSERT INTO `appointment` (`Appointment_ID`, `Client_ID`, `Service_ID`, `Design_
 (14, 1004, NULL, 1, '2026-06-02', NULL, NULL, '2026-06-02 11:24:55', 'Completed'),
 (15, 1004, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 11:29:24', 'Completed'),
 (16, 1004, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 11:30:04', 'Completed'),
-(17, 1004, NULL, 9, '2026-06-02', NULL, NULL, '2026-06-02 11:48:12', 'Completed'),
+(17, 1004, NULL, 9, '2026-06-02', NULL, NULL, '2026-06-02 14:31:31', 'Completed'),
 (18, 1002, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 12:12:01', 'Completed'),
 (19, 1001, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 12:15:55', 'Completed'),
 (20, 1005, NULL, 3, '2026-06-02', NULL, NULL, '2026-06-02 13:04:10', 'Completed'),
 (22, 1001, NULL, 1, '2026-06-02', NULL, NULL, '2026-06-02 14:21:40', 'Completed'),
-(23, 1002, NULL, 3, '2026-06-02', NULL, NULL, '2026-06-02 14:21:19', 'Completed');
+(23, 1002, NULL, 3, '2026-06-02', NULL, NULL, '2026-06-02 14:21:19', 'Completed'),
+(31, 1013, NULL, 18, '2026-06-02', NULL, NULL, '2026-06-02 14:52:15', 'Completed'),
+(32, 1013, NULL, 19, '2026-06-02', NULL, NULL, '2026-06-02 14:56:44', 'Cancelled');
 
 -- --------------------------------------------------------
 
@@ -98,7 +100,8 @@ INSERT INTO `client` (`Client_ID`, `Full_Name`, `Phone`, `Email_Add`, `Soc_Med_A
 (1006, 'Rens', '+12 111 222 1111', 'rens@gmail.com', '@facebook', '2000-01-01', 'Legazpi, City', 'Rock', '2026-06-01'),
 (1007, '2packs', '+12 111 222 1111', '@example.com', '@facebook', '2000-01-01', 'Street, City', 'Rock', '2026-06-02'),
 (1008, '3packs', '+12 111 222 1111', 'rens@gmail.com', '@facebook', '1011-10-01', 'Dmatagpuan City', 'Classic', '2026-06-02'),
-(1010, 'Enzo Manzano', '+12 111 222 1111', '@example.com', '@social', '1111-11-11', 'Legazpi, City', 'Classic', '2026-06-02');
+(1010, 'Enzo Manzano', '+12 111 222 1111', '@example.com', '@social', '1111-11-11', 'Legazpi, City', 'Classic', '2026-06-02'),
+(1013, 'temp3', '1', '@example.com', '@social', '1110-01-28', 'Legazpi, City', 'Classic', '2026-06-02');
 
 -- --------------------------------------------------------
 
@@ -128,7 +131,9 @@ INSERT INTO `design_inspo` (`Design_ID`, `Client_ID`, `Image_File_Path`, `Design
 (6, 1001, NULL, 'Red', NULL, 1),
 (7, 1001, '/static/uploads/design_c579d7bd366749f8ad0ca0fb7a92865c.jpeg', 'Blue', NULL, 3),
 (8, 1002, NULL, 'Pink', NULL, 8),
-(9, 1004, NULL, 'Ocean', '2026-06-02 19:48:12', 1);
+(9, 1004, NULL, 'Ocean', '2026-06-02 19:48:12', 1),
+(18, 1013, NULL, 'Sky blue', '2026-06-02 22:52:15', 1),
+(19, 1013, '/static/uploads/Yellow.jpeg', 'Yellow', '2026-06-02 22:56:18', 1);
 
 -- --------------------------------------------------------
 
@@ -192,7 +197,10 @@ INSERT INTO `history` (`Visit_ID`, `Client_ID`, `Visit_Date`, `Service_ID`) VALU
 (22, 1001, '2026-06-02', 1),
 (23, 1005, '2026-06-02', 1),
 (24, 1001, '2026-06-02', 10),
-(25, 1002, '2026-06-02', 5);
+(25, 1002, '2026-06-02', 5),
+(26, 1013, '2026-06-02', 2),
+(27, 1013, '2026-06-02', 5),
+(28, 1013, '2026-06-02', 8);
 
 -- --------------------------------------------------------
 
@@ -226,7 +234,8 @@ INSERT INTO `nail_size` (`Size_ID`, `Client_ID`, `L_Thumb_Size`, `L_Index_Size`,
 (3, 1002, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, '2026-06-02'),
 (4, 1008, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, '2026-06-02'),
 (5, 1010, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, '2026-06-02'),
-(6, 1004, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, '2026-06-02');
+(6, 1004, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, '2026-06-02'),
+(7, 1013, 20.0, 20.0, 20.0, 20.0, 20.0, 50.0, 50.0, 50.0, 50.0, 50.0, '2026-06-02');
 
 -- --------------------------------------------------------
 
@@ -305,7 +314,10 @@ INSERT INTO `transaction` (`Transaction_ID`, `Appointment_ID`, `Client_ID`, `Ser
 (22, 19, 1001, 1, '2026-06-01 16:00:00', 449.00, NULL, 0.00, 449.00),
 (23, 20, 1005, 1, '2026-06-01 16:00:00', 449.00, 1, 89.80, 359.20),
 (24, 22, 1001, 10, '2026-06-01 16:00:00', 200.00, 1, 40.00, 160.00),
-(25, 23, 1002, 5, '2026-06-01 16:00:00', 299.00, 1, 59.80, 239.20);
+(25, 23, 1002, 5, '2026-06-01 16:00:00', 299.00, 1, 59.80, 239.20),
+(26, 31, 1013, 2, '2026-06-01 16:00:00', 499.00, 1, 99.80, 399.20),
+(27, 32, 1013, 5, '2026-06-01 16:00:00', 299.00, 1, 59.80, 239.20),
+(28, 32, 1013, 8, '2026-06-01 16:00:00', 90.00, 1, 18.00, 72.00);
 
 --
 -- Indexes for dumped tables
@@ -378,31 +390,31 @@ ALTER TABLE `transaction`
 -- AUTO_INCREMENT for table `appointment`
 --
 ALTER TABLE `appointment`
-  MODIFY `Appointment_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `Appointment_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
 
 --
 -- AUTO_INCREMENT for table `design_inspo`
 --
 ALTER TABLE `design_inspo`
-  MODIFY `Design_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `Design_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `history`
 --
 ALTER TABLE `history`
-  MODIFY `Visit_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `Visit_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `nail_size`
 --
 ALTER TABLE `nail_size`
-  MODIFY `Size_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `Size_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `transaction`
 --
 ALTER TABLE `transaction`
-  MODIFY `Transaction_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `Transaction_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- Constraints for dumped tables
