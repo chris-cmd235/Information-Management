@@ -719,17 +719,22 @@ const FINGER_SHORT = ['LT','LI','LM','LR','LP','RT','RI','RM','RR','RP'];
 
 let cachedClients = [];
 let cachedVisits = []; 
+let cachedDiscounts = [];
 
 //REST API:Fetching existing values from MySQL
 async function fetchDashboardData() {
     try {
-        //1. Fetch Clients
+        //Fetch Clients
         const clientResponse = await fetch('/api/clients');
         if (!clientResponse.ok) throw new Error('Failed to load clients');
         cachedClients = await clientResponse.json();
         renderClientTable();
         
-        //2. Fetch Visits (all)
+        //Fetch Discounts
+        const discountResponse = await fetch('/api/discounts');
+        if (discountResponse.ok) cachedDiscounts = await discountResponse.json();
+        
+        //Fetch Visits (all)
         const visitsResponse = await fetch('/api/visits');
         if (visitsResponse.ok) {
             cachedVisits = await visitsResponse.json();
@@ -1419,6 +1424,8 @@ async function saveNewClientAndNext() {
     }
 }
 function showServiceSelection() {
+  const discountOptions = cachedDiscounts.map(d => `<option value="${d.Discount_ID}">${d.Discount_Name} (${parseFloat(d.Discount_Value)}%)</option>`).join('');
+
   openModal(`
     <div class="modal-header">
       <div class="modal-title">Services</div>
@@ -1435,8 +1442,19 @@ function showServiceSelection() {
           </div>
         `).join('')}
       </div>
-      <div class="total-row" id="svc-total">
-        <span>Total</span><span>₱0</span>
+      
+      <div class="form-group" style="margin-top: 1.5rem;">
+        <label class="form-label">Apply Discount</label>
+        <select class="form-control" id="svc-discount" onchange="updateServiceTotal()">
+          <option value="">None</option>
+          ${discountOptions}
+        </select>
+      </div>
+
+      <div class="total-row" id="svc-total" style="flex-direction: column; align-items: flex-end; gap: 4px;">
+        <div style="font-size: 12px; color: var(--ink-light);">Base: ₱0.00</div>
+        <div style="font-size: 12px; color: var(--rose-dark);">Discount: -₱0.00</div>
+        <div style="font-size: 15px; font-weight: bold; color: var(--ink);">Total: ₱0.00</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1445,6 +1463,7 @@ function showServiceSelection() {
     </div>
   `);
   flowData.selectedServices = [];
+  flowData.discountId = null;
 }
 
 function toggleService(idx) {
@@ -1458,10 +1477,35 @@ function toggleService(idx) {
     sel.push({ ...SERVICES[idx] });
     el.classList.add('selected');
   }
-  const total = sel.reduce((acc, s) => acc + s.price, 0);
-  document.getElementById('svc-total').innerHTML = `<span>Total</span><span style="color:var(--rose-dark);font-weight:500">₱${total}</span>`;
+  updateServiceTotal();
 }
 
+function updateServiceTotal() {
+  const sel = flowData.selectedServices || [];
+  const baseTotal = sel.reduce((acc, s) => acc + s.price, 0);
+  
+  const discountSelect = document.getElementById('svc-discount');
+  let discountPercent = 0;
+  flowData.discountId = null;
+  
+  // Calculate discount dynamically
+  if (discountSelect && discountSelect.value) {
+      flowData.discountId = parseInt(discountSelect.value);
+      const discountData = cachedDiscounts.find(d => d.Discount_ID === flowData.discountId);
+      if (discountData) {
+          discountPercent = parseFloat(discountData.Discount_Value) || 0;
+      }
+  }
+  
+  const discountAmount = baseTotal * (discountPercent / 100);
+  const finalTotal = baseTotal - discountAmount;
+  
+  document.getElementById('svc-total').innerHTML = `
+      <div style="font-size: 12px; color: var(--ink-mid);">Base: ₱${baseTotal.toFixed(2)}</div>
+      <div style="font-size: 12px; color: var(--rose-dark);">Discount: -₱${discountAmount.toFixed(2)}</div>
+      <div style="font-size: 15px; font-weight: bold; color: var(--ink);">Total: ₱${finalTotal.toFixed(2)}</div>
+  `;
+}
 function saveServicesAndNext() {
   if (!flowData.selectedServices || !flowData.selectedServices.length) {
     showToast('Please select at least one service.', 'error'); return;
@@ -1582,6 +1626,7 @@ async function saveVisitAndFinish() {
     
     nailSizes: flowData.nailSizes || {},
     designs: flowData.designs || {},
+    discountId: flowData.discountId || null,
     
     //Attach the processed Base64 image
     imageBase64: flowData.imageBase64 || null 

@@ -80,6 +80,21 @@ def get_clients():
         print(f"\nCRITICAL GET CLIENTS ERROR: {err}\n")
         return jsonify({'error': str(err)}), 500
 
+@app.route('/api/discounts', methods=['GET'])
+def get_discounts():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM discount")
+        discounts = cursor.fetchall()
+        return jsonify(discounts)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 @app.route('/api/clients/<int:client_id>/toggle-status', methods=['PUT'])
 def toggle_client_status(client_id):
     """Toggle the STATUS of the client's most recent appointment."""
@@ -365,8 +380,17 @@ def add_visit():
                 """, (client_id, l_thumb, l_index, l_middle, l_ring, l_pinky, 
                       r_thumb, r_index, r_middle, r_ring, r_pinky))
 
-	#1.Handle services, transaction and history
+	# 1.Handle services, transaction, history & DISCOUNTS
         selected_services = data.get('services') or []
+        discount_id = data.get('discountId')
+        discount_value = 0.0
+        
+        if discount_id:
+            cursor.execute("SELECT Discount_Value FROM discount WHERE Discount_ID = %s", (discount_id,))
+            discount_row = cursor.fetchone()
+            if discount_row and discount_row['Discount_Value']:
+                discount_value = float(discount_row['Discount_Value'])
+
         for srv in selected_services:
             srv_name = srv.get('name') if isinstance(srv, dict) else srv
             
@@ -375,11 +399,17 @@ def add_visit():
             
             if srv_row:
                 srv_id = srv_row['Service_ID']
+                base_amount = float(srv_row['Base_Price'])
+                
+                #Base Amount - Discount Amount = Total Amount
+                discount_amount = base_amount * (discount_value / 100.0) if discount_id else 0.0
+                total_amount = base_amount - discount_amount
                 
                 cursor.execute("""
-                    INSERT INTO transaction (Appointment_ID, Client_ID, Service_ID, Transaction_Date, Total_Amount, Status)
-                    VALUES (%s, %s, %s, %s, %s, 'Completed')
-                """, (appointment_id, client_id, srv_id, date_str, srv_row['Base_Price']))
+                    INSERT INTO transaction 
+                    (Appointment_ID, Client_ID, Service_ID, Transaction_Date, Base_Amount, Discount_ID, Discount_Amount, Total_Amount)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (appointment_id, client_id, srv_id, date_str, base_amount, discount_id, discount_amount, total_amount))
 
                 cursor.execute("""
                     INSERT INTO history (Client_ID, Service_ID, Visit_Date)
@@ -525,8 +555,7 @@ def get_analytics():
         cursor.execute("""
             SELECT SUM(Total_Amount) AS monthly_revenue 
             FROM transaction 
-            WHERE Status = 'Completed' 
-              AND MONTH(Transaction_Date) = MONTH(CURRENT_DATE())
+            WHERE MONTH(Transaction_Date) = MONTH(CURRENT_DATE())
               AND YEAR(Transaction_Date) = YEAR(CURRENT_DATE())
         """)
         rev_res = cursor.fetchone()
