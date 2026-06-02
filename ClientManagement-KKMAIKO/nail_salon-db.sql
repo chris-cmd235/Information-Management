@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 02, 2026 at 02:00 PM
+-- Generation Time: Jun 02, 2026 at 03:09 PM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.2.12
+-- PHP Version: 8.0.30
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -60,7 +60,10 @@ INSERT INTO `appointment` (`Appointment_ID`, `Client_ID`, `Service_ID`, `Design_
 (14, 1004, NULL, 1, '2026-06-02', NULL, NULL, '2026-06-02 11:24:55', 'Completed'),
 (15, 1004, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 11:29:24', 'Completed'),
 (16, 1004, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 11:30:04', 'Completed'),
-(17, 1004, NULL, 9, '2026-06-02', NULL, NULL, '2026-06-02 11:48:12', 'Completed');
+(17, 1004, NULL, 9, '2026-06-02', NULL, NULL, '2026-06-02 11:48:12', 'Completed'),
+(18, 1002, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 12:12:01', 'Completed'),
+(19, 1001, NULL, 8, '2026-06-02', NULL, NULL, '2026-06-02 12:15:55', 'Completed'),
+(20, 1005, NULL, 3, '2026-06-02', NULL, NULL, '2026-06-02 13:04:10', 'Completed');
 
 -- --------------------------------------------------------
 
@@ -118,12 +121,12 @@ CREATE TABLE `design_inspo` (
 INSERT INTO `design_inspo` (`Design_ID`, `Client_ID`, `Image_File_Path`, `Design_Description`, `Date_Added`, `Times_Used`) VALUES
 (1, 1001, NULL, 'Beige', NULL, 1),
 (2, 1002, NULL, 'temp', NULL, 2),
-(3, 1003, NULL, 'N/A', NULL, 1),
+(3, 1003, NULL, 'N/A', NULL, 2),
 (4, 1001, NULL, 'Floral', NULL, 3),
 (5, 1001, NULL, 'Forest', NULL, 2),
 (6, 1001, NULL, 'Red', NULL, 1),
 (7, 1001, '/static/uploads/design_c579d7bd366749f8ad0ca0fb7a92865c.jpeg', 'Blue', NULL, 3),
-(8, 1002, NULL, 'Pink', NULL, 6),
+(8, 1002, NULL, 'Pink', NULL, 8),
 (9, 1004, NULL, 'Ocean', '2026-06-02 19:48:12', 1);
 
 -- --------------------------------------------------------
@@ -138,6 +141,13 @@ CREATE TABLE `discount` (
   `Discount_Type` varchar(255) DEFAULT NULL,
   `Discount_Value` decimal(4,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `discount`
+--
+
+INSERT INTO `discount` (`Discount_ID`, `Discount_Name`, `Discount_Type`, `Discount_Value`) VALUES
+(1, 'Student', NULL, 20.00);
 
 -- --------------------------------------------------------
 
@@ -177,7 +187,10 @@ INSERT INTO `history` (`Visit_ID`, `Client_ID`, `Visit_Date`, `Service_ID`, `Vis
 (17, 1004, '2026-06-02', 10, NULL),
 (18, 1004, '2026-06-02', 5, NULL),
 (19, 1004, '2026-06-02', 4, NULL),
-(20, 1004, '2026-06-02', 1, NULL);
+(20, 1004, '2026-06-02', 1, NULL),
+(21, 1002, '2026-06-02', 1, NULL),
+(22, 1001, '2026-06-02', 1, NULL),
+(23, 1005, '2026-06-02', 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -208,7 +221,7 @@ CREATE TABLE `nail_size` (
 INSERT INTO `nail_size` (`Size_ID`, `Client_ID`, `L_Thumb_Size`, `L_Index_Size`, `L_Middle_Size`, `L_Ring_Size`, `L_Pinky_Size`, `R_Thumb_Size`, `R_Index_Size`, `R_Middle_Size`, `R_Ring_Size`, `R_Pinky_Size`, `Date_Measured`) VALUES
 (1, 1007, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, NULL),
 (2, 1001, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, NULL),
-(3, 1002, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, NULL),
+(3, 1002, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, NULL),
 (4, 1008, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, NULL),
 (5, 1010, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, NULL),
 (6, 1004, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, NULL);
@@ -258,38 +271,37 @@ CREATE TABLE `transaction` (
   `Base_Amount` decimal(7,2) DEFAULT NULL,
   `Discount_ID` int(11) DEFAULT NULL,
   `Discount_Amount` decimal(4,2) DEFAULT NULL,
-  `Subtotal` decimal(7,2) DEFAULT NULL,
-  `Tip_Amount` decimal(7,2) DEFAULT NULL,
-  `Total_Amount` decimal(7,2) DEFAULT NULL,
-  `Payment_Method` varchar(255) DEFAULT NULL,
-  `STATUS` varchar(255) DEFAULT NULL
+  `Total_Amount` decimal(7,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `transaction`
 --
 
-INSERT INTO `transaction` (`Transaction_ID`, `Appointment_ID`, `Client_ID`, `Service_ID`, `Transaction_Date`, `Base_Amount`, `Discount_ID`, `Discount_Amount`, `Subtotal`, `Tip_Amount`, `Total_Amount`, `Payment_Method`, `STATUS`) VALUES
-(1, 1, 1003, 1, '2026-05-30 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(2, 2, 1001, 5, '2026-05-31 16:00:00', NULL, NULL, NULL, NULL, NULL, 299.00, NULL, 'Completed'),
-(3, 3, 1004, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(4, 4, 1001, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(5, 5, 1005, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(6, 6, 1006, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(7, 7, 1007, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(8, 7, 1007, 9, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 170.00, NULL, 'Completed'),
-(9, 8, 1007, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(10, 9, 1001, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(11, 10, 1002, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(12, 11, 1008, 3, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 549.00, NULL, 'Completed'),
-(13, 12, 1010, 6, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 349.00, NULL, 'Completed'),
-(14, 13, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(15, 14, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(16, 15, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed'),
-(17, 16, 1004, 10, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 200.00, NULL, 'Completed'),
-(18, 16, 1004, 5, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 299.00, NULL, 'Completed'),
-(19, 16, 1004, 4, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 599.00, NULL, 'Completed'),
-(20, 17, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, NULL, NULL, 449.00, NULL, 'Completed');
+INSERT INTO `transaction` (`Transaction_ID`, `Appointment_ID`, `Client_ID`, `Service_ID`, `Transaction_Date`, `Base_Amount`, `Discount_ID`, `Discount_Amount`, `Total_Amount`) VALUES
+(1, 1, 1003, 1, '2026-05-30 16:00:00', NULL, NULL, NULL, 449.00),
+(2, 2, 1001, 5, '2026-05-31 16:00:00', NULL, NULL, NULL, 299.00),
+(3, 3, 1004, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, 449.00),
+(4, 4, 1001, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, 449.00),
+(5, 5, 1005, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, 449.00),
+(6, 6, 1006, 1, '2026-05-31 16:00:00', NULL, NULL, NULL, 449.00),
+(7, 7, 1007, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(8, 7, 1007, 9, '2026-06-01 16:00:00', NULL, NULL, NULL, 170.00),
+(9, 8, 1007, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(10, 9, 1001, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(11, 10, 1002, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(12, 11, 1008, 3, '2026-06-01 16:00:00', NULL, NULL, NULL, 549.00),
+(13, 12, 1010, 6, '2026-06-01 16:00:00', NULL, NULL, NULL, 349.00),
+(14, 13, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(15, 14, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(16, 15, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(17, 16, 1004, 10, '2026-06-01 16:00:00', NULL, NULL, NULL, 200.00),
+(18, 16, 1004, 5, '2026-06-01 16:00:00', NULL, NULL, NULL, 299.00),
+(19, 16, 1004, 4, '2026-06-01 16:00:00', NULL, NULL, NULL, 599.00),
+(20, 17, 1004, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
+(21, 18, 1002, 1, '2026-06-01 16:00:00', 449.00, NULL, 0.00, 449.00),
+(22, 19, 1001, 1, '2026-06-01 16:00:00', 449.00, NULL, 0.00, 449.00),
+(23, 20, 1005, 1, '2026-06-01 16:00:00', 449.00, 1, 89.80, 359.20);
 
 --
 -- Indexes for dumped tables
@@ -362,7 +374,7 @@ ALTER TABLE `transaction`
 -- AUTO_INCREMENT for table `appointment`
 --
 ALTER TABLE `appointment`
-  MODIFY `Appointment_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `Appointment_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `design_inspo`
@@ -374,7 +386,7 @@ ALTER TABLE `design_inspo`
 -- AUTO_INCREMENT for table `history`
 --
 ALTER TABLE `history`
-  MODIFY `Visit_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+  MODIFY `Visit_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `nail_size`
@@ -386,7 +398,7 @@ ALTER TABLE `nail_size`
 -- AUTO_INCREMENT for table `transaction`
 --
 ALTER TABLE `transaction`
-  MODIFY `Transaction_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+  MODIFY `Transaction_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- Constraints for dumped tables
