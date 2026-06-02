@@ -888,7 +888,6 @@ function switchTab(tab) {
 //ANALYTICS
 function renderAnalytics(metrics) {
   const clients = getClients();
-  const visits = getVisits();
   const now = new Date();
   const curMonth = now.getMonth();
   const curYear = now.getFullYear();
@@ -1152,7 +1151,6 @@ async function toggleStatus(clientId) {
             openClientDetail(clientId);
         }
         renderClientTable();
-        renderAnalytics();
     } catch (error) {
         console.error("Toggle status error:", error);
         showToast(`Error: ${error.message}`, 'error');
@@ -1376,32 +1374,66 @@ function lookupClient() {
 }
 
 async function saveNewClientAndNext() {
-  const name = document.getElementById('nc-name').value.trim();
-  if (!name) { showToast('Full name is required.', 'error'); return; }
-  
-  const newClient = {
-    id: flowData.clientId,
-    fullName: name,
-    phone: document.getElementById('nc-phone').value.trim(),
-    email: document.getElementById('nc-email').value.trim(),
-    socialMedia: document.getElementById('nc-social').value.trim(),
-    birthday: document.getElementById('nc-bday').value || null,
-    address: document.getElementById('nc-addr').value.trim(),
-    favoriteMusic: document.getElementById('nc-music').value.trim(),
-    dateRegistered: today(),
-    status: 'active'
-  };
-  
-  const clients = getClients();
-  clients.push(newClient);
-  
-  await saveClients(clients);
-  
-  if (clients.includes(newClient)) {
-      showServiceSelection();
-  }
+    const name = document.getElementById('nc-name').value.trim();
+    if (!name) { 
+        showToast('Full name is required.', 'error'); 
+        return; 
+    }
+    
+    // 1. Check for duplicate name (case‑insensitive)
+    const existingClient = cachedClients.find(c => 
+        c.fullName && c.fullName.toLowerCase() === name.toLowerCase()
+    );
+    
+    if (existingClient) {
+        // Duplicate found: ask user what to do
+        const useExisting = confirm(
+            `A client named "${existingClient.fullName}" (ID #${existingClient.id}) already exists.\n\n` +
+            `Do you want to add a new appointment for this existing client?\n` +
+            `Click OK to proceed with the existing client, or Cancel to go back and change the name.`
+        );
+        
+        if (useExisting) {
+            // Use existing client – skip creating a new client
+            flowData.isNew = false;
+            flowData.clientId = existingClient.id;
+            showToast(`Using existing client: ${existingClient.fullName}`, 'success');
+            showServiceSelection();  // proceed to services, nail sizes, design, etc.
+        } else {
+            // User wants to change the name – just close the modal (they can reopen)
+            closeModal();
+            showToast('Please change the client name and try again.', 'info');
+        }
+        return;
+    }
+    
+    // 2. No duplicate – create a new client (original logic)
+    const newId = nextClientId();  // generate a new ID
+    flowData.isNew = true;
+    flowData.clientId = newId;
+    
+    const newClient = {
+        id: newId,
+        fullName: name,
+        phone: document.getElementById('nc-phone').value.trim(),
+        email: document.getElementById('nc-email').value.trim(),
+        socialMedia: document.getElementById('nc-social').value.trim(),
+        birthday: document.getElementById('nc-bday').value || null,
+        address: document.getElementById('nc-addr').value.trim(),
+        favoriteMusic: document.getElementById('nc-music').value.trim(),
+        dateRegistered: today(),
+        status: 'active'
+    };
+    
+    const clients = getClients();
+    clients.push(newClient);
+    
+    await saveClients(clients);
+    
+    if (clients.includes(newClient)) {
+        showServiceSelection();
+    }
 }
-
 function showServiceSelection() {
   const discountOptions = cachedDiscounts.map(d => `<option value="${d.Discount_ID}">${d.Discount_Name} (${parseFloat(d.Discount_Value)}%)</option>`).join('');
 

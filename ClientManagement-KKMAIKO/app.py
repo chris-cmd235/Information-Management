@@ -109,7 +109,7 @@ def toggle_client_status(client_id):
             SELECT Appointment_ID, STATUS 
             FROM appointment
             WHERE Client_ID = %s
-            ORDER BY Appointment_Date DESC, Booking_Date_time DESC
+            ORDER BY Appointment_Date DESC, Booking_Date_Time DESC
             LIMIT 1
         """, (client_id,))
         appt = cursor.fetchone()
@@ -307,13 +307,22 @@ def add_visit():
                 print(f"IMAGE UPLOAD ERROR: {img_e}")
 
         #Save to Database
-        #Creates a new record
-        if image_file_path:
+        # Check if a design with the same description already exists
+        cursor.execute("""
+            SELECT Design_ID, Times_Used, Client_ID 
+            FROM design_inspo 
+            WHERE Design_Description = %s
+        """, (design_desc,))
+        existing_design = cursor.fetchone()
+
+        if existing_design:
+            # Design exists: increment Times_Used
+            design_id = existing_design['Design_ID']
             cursor.execute("""
-                INSERT INTO design_inspo (Design_Description, Image_File_Path) 
-                VALUES (%s, %s)
-            """, (design_desc, image_file_path))
-            design_id = cursor.lastrowid
+                UPDATE design_inspo 
+                SET Times_Used = Times_Used + 1 
+                WHERE Design_ID = %s
+            """, (design_id,))
         else:
             #If no picture is uploaded, reuse text description entries to prevent database bloat
             cursor.execute("SELECT Design_ID FROM design_inspo WHERE Design_Description = %s", (design_desc,))
@@ -323,6 +332,13 @@ def add_visit():
             else:
                 cursor.execute("INSERT INTO design_inspo (Design_Description) VALUES (%s)", (design_desc,))
                 design_id = cursor.lastrowid
+            # New design: insert with Date_Added, Times_Used = 1, Client_ID = current client
+            cursor.execute("""
+                INSERT INTO design_inspo 
+                (Design_Description, Image_File_Path, Client_ID, Date_Added, Times_Used)
+                VALUES (%s, %s, %s, NOW(), 1)
+            """, (design_desc, image_file_path, client_id))
+            design_id = cursor.lastrowid
 
         #CREATE APPOINTMENT
         cursor.execute("""
@@ -475,7 +491,7 @@ def get_analytics():
         cursor.execute("""
             SELECT 
                 Design_Description AS name, 
-                COUNT(*) AS count
+                Times_Used AS count
             FROM design_inspo
             GROUP BY Design_Description
             ORDER BY count DESC
