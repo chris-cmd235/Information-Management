@@ -26,24 +26,47 @@ def get_clients():
         
         #Pull records from database
         cursor.execute("""
-            SELECT Client_ID, Full_Name, Phone, Email_Add, Soc_Med_Acc, Birthday, Address, Favorite_Music, Date_Registered 
-            FROM client
+            SELECT 
+                c.Client_ID, 
+                c.Full_Name, 
+                c.Phone, 
+                c.Email_Add, 
+                c.Soc_Med_Acc, 
+                c.Birthday, 
+                c.Address, 
+                c.Favorite_Music, 
+                c.Date_Registered,
+                (
+                    SELECT a.STATUS 
+                    FROM appointment a 
+                    WHERE a.Client_ID = c.Client_ID 
+                    ORDER BY a.Appointment_Date DESC, a.Booking_Date_Time DESC 
+                    LIMIT 1
+                ) AS Status
+            FROM client c
         """)
         db_clients = cursor.fetchall()
         
         clients = []
         for c in db_clients:
+            status = c['Status'] if c['Status'] is not None else 'active'
+            #Normalize case
+            if status and status.lower() == 'cancelled':
+                display_status = 'cancelled'
+            else:
+                display_status = 'active'
+            
             clients.append({
                 'id': c['Client_ID'],
-                'fullName': c['Full_Name'] if c['Full_Name'] else '',
-                'phone': c['Phone'] if c['Phone'] else '',
-                'email': c['Email_Add'] if c['Email_Add'] else '',
-                'socialMedia': c['Soc_Med_Acc'] if c['Soc_Med_Acc'] else '',
+                'fullName': c['Full_Name'] or '',
+                'phone': c['Phone'] or '',
+                'email': c['Email_Add'] or '',
+                'socialMedia': c['Soc_Med_Acc'] or '',
                 'birthday': c['Birthday'].strftime('%Y-%m-%d') if c['Birthday'] else '',
-                'address': c['Address'] if c['Address'] else '',
-                'favoriteMusic': c['Favorite_Music'] if c['Favorite_Music'] else '',
+                'address': c['Address'] or '',
+                'favoriteMusic': c['Favorite_Music'] or '',
                 'dateRegistered': c['Date_Registered'].strftime('%Y-%m-%d') if c['Date_Registered'] else None,
-                'status': 'active' 
+                'status': display_status
             })
             
         cursor.close()
@@ -52,6 +75,54 @@ def get_clients():
     except Exception as err:
         print(f"\nCRITICAL GET CLIENTS ERROR: {err}\n")
         return jsonify({'error': str(err)}), 500
+
+@app.route('/api/clients/<int:client_id>/toggle-status', methods=['PUT'])
+def toggle_client_status(client_id):
+    """Toggle the STATUS of the client's most recent appointment."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Find the most recent appointment for this client
+        cursor.execute("""
+            SELECT Appointment_ID, STATUS 
+            FROM appointment
+            WHERE Client_ID = %s
+            ORDER BY Appointment_Date DESC, Booking_Date_time DESC
+            LIMIT 1
+        """, (client_id,))
+        appt = cursor.fetchone()
+        
+        if not appt:
+            return jsonify({'error': 'No appointment found for this client'}), 404
+        
+        # Determine new status
+        current = appt['STATUS']
+        new_status = 'Cancelled' if current == 'Completed' else 'Completed'
+        
+        # Update the appointment
+        cursor.execute("""
+            UPDATE appointment 
+            SET STATUS = %s 
+            WHERE Appointment_ID = %s
+        """, (new_status, appt['Appointment_ID']))
+        conn.commit()
+        
+        return jsonify({
+            'message': f'Client status updated to {new_status.lower()}',
+            'new_status': new_status.lower()
+        }), 200
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"\nTOGGLE STATUS ERROR: {e}\n")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 #REST API: adds new client
 @app.route('/api/clients', methods=['POST'])
@@ -201,28 +272,26 @@ def add_visit():
         nail_sizes = data.get('nailSizes') or {}
         
         #Helper function to unwrap size objects if they arrive as dicts
-        def get_size(hand_dict, finger):
-            val = hand_dict.get(finger)
+        def get_flat_size(ns_dict, key):
+            val = ns_dict.get(key)
             return val.get('value') if isinstance(val, dict) else val
 
-        l_sizes = nail_sizes.get('left') or {}
-        l_thumb = get_size(l_sizes, 'thumb')
-        l_index = get_size(l_sizes, 'index')
-        l_middle = get_size(l_sizes, 'middle')
-        l_ring = get_size(l_sizes, 'ring')
-        l_pinky = get_size(l_sizes, 'pinky')
+        l_thumb = get_flat_size(nail_sizes, 'LT')
+        l_index = get_flat_size(nail_sizes, 'LI')
+        l_middle = get_flat_size(nail_sizes, 'LM')
+        l_ring = get_flat_size(nail_sizes, 'LR')
+        l_pinky = get_flat_size(nail_sizes, 'LP')
         
-        r_sizes = nail_sizes.get('right') or {}
-        r_thumb = get_size(r_sizes, 'thumb')
-        r_index = get_size(r_sizes, 'index')
-        r_middle = get_size(r_sizes, 'middle')
-        r_ring = get_size(r_sizes, 'ring')
-        r_pinky = get_size(r_sizes, 'pinky')
+        r_thumb = get_flat_size(nail_sizes, 'RT')
+        r_index = get_flat_size(nail_sizes, 'RI')
+        r_middle = get_flat_size(nail_sizes, 'RM')
+        r_ring = get_flat_size(nail_sizes, 'RR')
+        r_pinky = get_flat_size(nail_sizes, 'RP')
         
         if any([l_thumb, l_index, l_middle, l_ring, l_pinky, r_thumb, r_index, r_middle, r_ring, r_pinky]):
-            cursor.execute("SELECT Nail_Size_ID FROM nail_size WHERE Client_ID = %s", (client_id,))
-            existing_size = cursor.fetchone()
-            
+            cursor.execute("SELECT Size_ID FROM nail_size WHERE Client_ID = %s", (client_id,))
+            existing_size = cursor.fetchone() is not None
+    
             if existing_size:
                 cursor.execute("""
                     UPDATE nail_size 
@@ -272,6 +341,30 @@ def add_visit():
         cursor.close()
         conn.close()
 
+#Recent Visit Fix
+@app.route('/api/recent-visits', methods=['GET'])
+def recent_visits():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT 
+            Client_ID, 
+            Full_Name 
+        FROM client 
+        ORDER BY Client_ID DESC 
+        LIMIT 3
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify([
+        {
+            'id': r['Client_ID'],
+            'name': r['Full_Name']
+        }
+        for r in rows
+    ])
+
 #Dashboard Analytics Summary
 @app.route('/api/analytics', methods=['GET'])
 def get_analytics():
@@ -302,18 +395,17 @@ def get_analytics():
 
         #4.Top 3 Designs(Excluding "N/A" for multiple nail designs)
         cursor.execute("""
-            SELECT d.Design_Description AS name, COUNT(a.Appointment_ID) AS count
-            FROM appointment a
-            JOIN design_inspo d ON a.Design_ID = d.Design_ID
-            WHERE a.Status = 'Completed' AND d.Design_Description != 'N/A'
-            GROUP BY d.Design_ID, d.Design_Description
+            SELECT 
+                Design_Description AS name, 
+                COUNT(*) AS count
+            FROM design_inspo
+            GROUP BY Design_Description
             ORDER BY count DESC
             LIMIT 3
         """)
         top_designs = cursor.fetchall()
         
         cursor.close()
-        conn.close()
         
         return jsonify({
             'monthlyRevenue': monthly_revenue,

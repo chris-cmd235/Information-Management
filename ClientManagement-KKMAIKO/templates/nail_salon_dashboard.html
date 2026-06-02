@@ -735,14 +735,32 @@ async function fetchDashboardData() {
         const metrics = await analyticsResponse.json();
         
         renderAnalytics(metrics);
+        
+        await loadRecentVisits(); //fix for recent visits
             
     } catch (error) {
-        console.error("❌ Data Pipeline Sync Error:", error);
+        console.error("Data Pipeline Sync Error:", error);
     }
 }
 
 function getClients() { return cachedClients; }
 function getVisits() { return []; }
+
+async function loadRecentVisits() {
+  try {
+    const response = await fetch('/api/recent-visits');
+    const visits = await response.json();
+    const html = visits.map(v => `
+      <div class="recent-item" onclick="openClientDetail(${v.id})">
+        <div class="avatar-sm">${initials(v.name)}</div>
+        <div class="recent-name">${esc(v.name)}</div>
+      </div>
+    `).join('');
+    document.getElementById('recent-visits').innerHTML = html || '<div class="visits-empty">No visits.</div>';
+  } catch (err) {
+    console.error("Error loading recent visits:", err);
+  }
+}
 
 //REST API:POST new data fields
 async function saveClients(arr) { 
@@ -755,10 +773,10 @@ async function saveClients(arr) {
         });
         const resData = await response.json();
         if (!response.ok) throw new Error(resData.error || 'Server rejected insertion pipeline');
-        console.log("✏️ Sync Success:", resData.message);
+        console.log("Sync Success:", resData.message);
         cachedClients = arr;
     } catch (error) {
-        console.error("❌ Pipeline Break during saveClients:", error);
+        console.error("Pipeline Break during saveClients:", error);
         showToast(`Database write dropped: ${error.message}`, 'error');
         arr.pop(); 
     }
@@ -774,9 +792,9 @@ async function updateClientInDB(updatedClient) {
         });
         const resData = await response.json();
         if (!response.ok) throw new Error(resData.error || 'Server rejected modification routine');
-        console.log("✏️ Update Success:", resData.message);
+        console.log("Update Success:", resData.message);
     } catch (error) {
-        console.error("❌ Pipeline Break during updateClientInDB:", error);
+        console.error("Pipeline Break during updateClientInDB:", error);
         showToast(`Update dropped: ${error.message}`, 'error');
         throw error;
     }
@@ -789,9 +807,9 @@ async function deleteClientFromDB(clientId) {
         });
         const resData = await response.json();
         if (!response.ok) throw new Error(resData.error || 'Server rejected deletion routine');
-        console.log("🗑️ Delete Success:", resData.message);
+        console.log("Delete Success:", resData.message);
     } catch (error) {
-        console.error("❌ Pipeline Break during deleteClientFromDB:", error);
+        console.error("Pipeline Break during deleteClientFromDB:", error);
         showToast(`Deletion dropped: ${error.message}`, 'error');
         throw error;
     }
@@ -824,82 +842,86 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function nextClientId() {
+    const clients = getClients();
+    if (clients.length === 0) return 1001;      // start from 1001 if no clients exist
+    const maxId = Math.max(...clients.map(c => c.id));
+    return maxId + 1;
+}
+
+function validateName(name) {
+  return /^[A-Za-zÀ-ÿ\s.'-]{2,100}$/.test(name);
+}
+
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateSocialMedia(username) {
+  return username === '' || /^[A-Za-z0-9._@]{3,50}$/.test(username);
+}
+
+function validateBirthday(dateStr) {
+  if (!dateStr) return true;
+  const birthday = new Date(dateStr);
+  const today = new Date();
+  if (birthday > today) return false;
+  let age = today.getFullYear() - birthday.getFullYear();
+  const monthDiff = today.getMonth() - birthday.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthday.getDate())) age--;
+  return age >= 5 && age <= 120;
+}
+
+
 //TAB SWITCHING
 function switchTab(tab) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   document.querySelectorAll('.tab-btn')[tab === 'analytics' ? 0 : 1].classList.add('active');
-  if (tab === 'analytics') renderAnalytics();
-  if (tab === 'clients') renderClientTable();
 }
 
 //ANALYTICS
-function renderAnalytics() {
+function renderAnalytics(metrics) {
   const clients = getClients();
   const visits = getVisits();
   const now = new Date();
   const curMonth = now.getMonth();
   const curYear = now.getFullYear();
 
-  //Monthly revenue
-  let monthlyRev = 0;
-  visits.forEach(v => {
-    if (!v.date) return;
-    const d = new Date(v.date + 'T00:00:00');
-    if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
-      (v.services || []).forEach(s => { monthlyRev += s.price || 0; });
-    }
-  });
-
-  const totalClients = clients.length;
-  const cancelCount = clients.filter(c => c.status === 'cancelled').length;
-  const totalVisits = visits.length;
+  // If metrics mapping wasn't passed down gracefully, fall back cleanly
+  const monthlyRevenueValue = metrics ? metrics.monthlyRevenue : 0;
+  const cancelCountValue = metrics ? metrics.cancellations : 0;
+  const totalVisitsValue = metrics ? metrics.totalVisits : 0;
 
   document.getElementById('metrics-grid').innerHTML = `
     <div class="metric-card gold">
       <div class="metric-label">Monthly Revenue</div>
-      <div class="metric-value">₱${monthlyRev.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+      <div class="metric-value">₱${monthlyRevenueValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
       <div class="metric-sub">${now.toLocaleString('en-US',{month:'long'})} ${curYear}</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Cancellations</div>
-      <div class="metric-value">${cancelCount}</div>
-      <div class="metric-sub">of ${totalClients} total</div>
+      <div class="metric-value">${cancelCountValue}</div>
+      <div class="metric-sub">of ${clients.length} total</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Total Visits</div>
-      <div class="metric-value">${totalVisits}</div>
+      <div class="metric-value">${totalVisitsValue || 0}</div>
       <div class="metric-sub">all time</div>
     </div>
   `;
 
-  //Top 3 designs
-  const designCounts = {};
-  visits.forEach(v => {
-    if (!v.designs) return;
-    if (v.designs.all) {
-      designCounts[v.designs.all] = (designCounts[v.designs.all] || 0) + 1;
-    } else {
-      FINGERS.forEach((f, i) => {
-        const key = FINGER_SHORT[i];
-        if (v.designs[key]) {
-          designCounts[v.designs[key]] = (designCounts[v.designs[key]] || 0) + 1;
-        }
-      });
-    }
-  });
-
-  const sorted = Object.entries(designCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  // Top 3 designs handling (Update to read from backend data directly)
   const topEl = document.getElementById('top-designs');
-  if (!sorted.length) {
+  if (!metrics || !metrics.topDesigns || !metrics.topDesigns.length) {
     topEl.innerHTML = '<div class="visits-empty">No design data yet.</div>';
   } else {
-    topEl.innerHTML = sorted.map(([ name, count ], i) => `
+    topEl.innerHTML = metrics.topDesigns.map((d, i) => `
       <div class="design-rank">
         <div class="rank-num">${i + 1}</div>
-        <div class="rank-name">${esc(name)}</div>
-        <div class="rank-count">${count}× used</div>
+        <div class="rank-name">${esc(d.name)}</div>
+        <div class="rank-count">${d.count}× used</div>
       </div>
     `).join('');
   }
@@ -1107,15 +1129,30 @@ function calcAge(bday) {
   return age;
 }
 
-function toggleStatus(clientId) {
-  const clients = getClients();
-  const c = clients.find(x => x.id === clientId);
-  if (!c) return;
-  c.status = c.status === 'cancelled' ? 'active' : 'cancelled';
-  saveClients(clients);
-  showToast(`Client marked as ${c.status}.`);
-  openClientDetail(clientId);
-  renderClientTable();
+async function toggleStatus(clientId) {
+    try {
+        const response = await fetch(`/api/clients/${clientId}/toggle-status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        
+        showToast(data.message, 'success');
+        
+        // Refresh everything from the server
+        await fetchDashboardData();
+        
+        // If the detail panel is open, refresh it
+        if (document.getElementById('detail-panel').classList.contains('open')) {
+            openClientDetail(clientId);
+        }
+        renderClientTable();
+        renderAnalytics();
+    } catch (error) {
+        console.error("Toggle status error:", error);
+        showToast(`Error: ${error.message}`, 'error');
+    }
 }
 
 function confirmDelete(clientId) {
@@ -1581,8 +1618,6 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-renderAnalytics();
-renderClientTable();
 </script>
 </body>
 </html>
