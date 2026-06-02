@@ -718,37 +718,39 @@ const FINGERS = ['L-Thumb','L-Index','L-Middle','L-Ring','L-Pinky','R-Thumb','R-
 const FINGER_SHORT = ['LT','LI','LM','LR','LP','RT','RI','RM','RR','RP'];
 
 let cachedClients = [];
-let cachedVisits = [];
-let cachedDiscounts = []; 
+let cachedVisits = []; 
 
 //REST API:Fetching existing values from MySQL
 async function fetchDashboardData() {
     try {
+        //1. Fetch Clients
         const clientResponse = await fetch('/api/clients');
         if (!clientResponse.ok) throw new Error('Failed to load clients');
         cachedClients = await clientResponse.json();
         renderClientTable();
         
-        // Fetch Discounts (NEW)
-        const discountResponse = await fetch('/api/discounts');
-        if (discountResponse.ok) cachedDiscounts = await discountResponse.json();
+        //2. Fetch Visits (all)
+        const visitsResponse = await fetch('/api/visits');
+        if (visitsResponse.ok) {
+            cachedVisits = await visitsResponse.json();
+	    renderClientTable(); 
+        } else {
+            cachedVisits = [];
+        }
         
-        // 2. Fetch Analytics directly from the database
+        //3. Fetch Analytics
         const analyticsResponse = await fetch('/api/analytics');
         if (!analyticsResponse.ok) throw new Error('Failed to load analytics');
         const metrics = await analyticsResponse.json();
-        
         renderAnalytics(metrics);
         
-        await loadRecentVisits(); //fix for recent visits
-            
+        await loadRecentVisits();
     } catch (error) {
         console.error("Data Pipeline Sync Error:", error);
     }
 }
-
 function getClients() { return cachedClients; }
-function getVisits() { return []; }
+function getVisits() { return cachedVisits; }
 
 async function loadRecentVisits() {
   try {
@@ -915,7 +917,7 @@ function renderAnalytics(metrics) {
     </div>
   `;
 
-  //Top 3 designs handling (Update to read from backend data directly)
+  // Top 3 designs handling (Update to read from backend data directly)
   const topEl = document.getElementById('top-designs');
   if (!metrics || !metrics.topDesigns || !metrics.topDesigns.length) {
     topEl.innerHTML = '<div class="visits-empty">No design data yet.</div>';
@@ -927,24 +929,6 @@ function renderAnalytics(metrics) {
         <div class="rank-count">${d.count}× used</div>
       </div>
     `).join('');
-  }
-
-  //Recent visits
-  const recent = [...visits].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5);
-  const recEl = document.getElementById('recent-visits');
-  if (!recent.length) {
-    recEl.innerHTML = '<div class="visits-empty">No visits recorded yet.</div>';
-  } else {
-    recEl.innerHTML = recent.map(v => {
-      const client = getClients().find(c => c.id === v.clientId);
-      const cName = client ? client.fullName : 'Unknown';
-      return `<div class="recent-item" onclick="openClientDetail(${v.clientId})">
-        <div class="avatar-sm">${initials(cName)}</div>
-        <div class="recent-name">${esc(cName)}</div>
-        <div class="recent-date">${fmtDate(v.date)}</div>
-        <div class="recent-badge">${(v.services||[]).map(s=>s.name).join(', ') || '—'}</div>
-      </div>`;
-    }).join('');
   }
 }
 
@@ -1435,8 +1419,6 @@ async function saveNewClientAndNext() {
     }
 }
 function showServiceSelection() {
-  const discountOptions = cachedDiscounts.map(d => `<option value="${d.Discount_ID}">${d.Discount_Name} (${parseFloat(d.Discount_Value)}%)</option>`).join('');
-
   openModal(`
     <div class="modal-header">
       <div class="modal-title">Services</div>
@@ -1453,19 +1435,8 @@ function showServiceSelection() {
           </div>
         `).join('')}
       </div>
-      
-      <div class="form-group" style="margin-top: 1.5rem;">
-        <label class="form-label">Apply Discount</label>
-        <select class="form-control" id="svc-discount" onchange="updateServiceTotal()">
-          <option value="">None</option>
-          ${discountOptions}
-        </select>
-      </div>
-
-      <div class="total-row" id="svc-total" style="flex-direction: column; align-items: flex-end; gap: 4px;">
-        <div style="font-size: 12px; color: var(--ink-light);">Base: ₱0.00</div>
-        <div style="font-size: 12px; color: var(--rose-dark);">Discount: -₱0.00</div>
-        <div style="font-size: 15px; font-weight: bold; color: var(--ink);">Total: ₱0.00</div>
+      <div class="total-row" id="svc-total">
+        <span>Total</span><span>₱0</span>
       </div>
     </div>
     <div class="modal-footer">
@@ -1474,7 +1445,6 @@ function showServiceSelection() {
     </div>
   `);
   flowData.selectedServices = [];
-  flowData.discountId = null;
 }
 
 function toggleService(idx) {
@@ -1488,34 +1458,8 @@ function toggleService(idx) {
     sel.push({ ...SERVICES[idx] });
     el.classList.add('selected');
   }
-  updateServiceTotal();
-}
-
-function updateServiceTotal() {
-  const sel = flowData.selectedServices || [];
-  const baseTotal = sel.reduce((acc, s) => acc + s.price, 0);
-  
-  const discountSelect = document.getElementById('svc-discount');
-  let discountPercent = 0;
-  flowData.discountId = null;
-  
-  //Calculate discount dynamically
-  if (discountSelect && discountSelect.value) {
-      flowData.discountId = parseInt(discountSelect.value);
-      const discountData = cachedDiscounts.find(d => d.Discount_ID === flowData.discountId);
-      if (discountData) {
-          discountPercent = parseFloat(discountData.Discount_Value) || 0;
-      }
-  }
-  
-  const discountAmount = baseTotal * (discountPercent / 100);
-  const finalTotal = baseTotal - discountAmount;
-  
-  document.getElementById('svc-total').innerHTML = `
-      <div style="font-size: 12px; color: var(--ink-mid);">Base: ₱${baseTotal.toFixed(2)}</div>
-      <div style="font-size: 12px; color: var(--rose-dark);">Discount: -₱${discountAmount.toFixed(2)}</div>
-      <div style="font-size: 15px; font-weight: bold; color: var(--ink);">Total: ₱${finalTotal.toFixed(2)}</div>
-  `;
+  const total = sel.reduce((acc, s) => acc + s.price, 0);
+  document.getElementById('svc-total').innerHTML = `<span>Total</span><span style="color:var(--rose-dark);font-weight:500">₱${total}</span>`;
 }
 
 function saveServicesAndNext() {
@@ -1631,12 +1575,16 @@ async function saveVisitAndFinish() {
 
   const visit = {
     clientId: typeof flowData.clientId === 'object' && flowData.clientId !== null ? flowData.clientId.id : flowData.clientId,
+    
     date: new Date().toISOString().split('T')[0], 
+    
     services: (flowData.selectedServices || []).map(s => typeof s === 'object' ? s.name : s),
+    
     nailSizes: flowData.nailSizes || {},
     designs: flowData.designs || {},
-    imageBase64: flowData.imageBase64 || null,
-    discountId: flowData.discountId || null 
+    
+    //Attach the processed Base64 image
+    imageBase64: flowData.imageBase64 || null 
   };
 
   //3. PRE-FLIGHT CHECK
