@@ -365,20 +365,20 @@ def add_visit():
     
             if existing_size:
                 cursor.execute("""
-                    UPDATE nail_size 
+                    UPDATE nail_size
                     SET L_Thumb_Size=%s, L_Index_Size=%s, L_Middle_Size=%s, L_Ring_Size=%s, L_Pinky_Size=%s,
-                        R_Thumb_Size=%s, R_Index_Size=%s, R_Middle_Size=%s, R_Ring_Size=%s, R_Pinky_Size=%s
+                        R_Thumb_Size=%s, R_Index_Size=%s, R_Middle_Size=%s, R_Ring_Size=%s, R_Pinky_Size=%s,
                         Date_Measured=CURRENT_DATE()
                     WHERE Client_ID=%s
-                """, (l_thumb, l_index, l_middle, l_ring, l_pinky, 
+                """, (l_thumb, l_index, l_middle, l_ring, l_pinky,
                       r_thumb, r_index, r_middle, r_ring, r_pinky, client_id))
             else:
                 cursor.execute("""
-                    INSERT INTO nail_size 
-                    (Client_ID, L_Thumb_Size, L_Index_Size, L_Middle_Size, L_Ring_Size, L_Pinky_Size, 
-                     R_Thumb_Size, R_Index_Size, R_Middle_Size, R_Ring_Size, R_Pinky_Size, Date_Measured))
+                    INSERT INTO nail_size
+                    (Client_ID, L_Thumb_Size, L_Index_Size, L_Middle_Size, L_Ring_Size, L_Pinky_Size,
+                     R_Thumb_Size, R_Index_Size, R_Middle_Size, R_Ring_Size, R_Pinky_Size, Date_Measured)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE())
-                """, (client_id, l_thumb, l_index, l_middle, l_ring, l_pinky, 
+                """, (client_id, l_thumb, l_index, l_middle, l_ring, l_pinky,
                       r_thumb, r_index, r_middle, r_ring, r_pinky))
 
 	# 1.Handle services, transaction, history & DISCOUNTS
