@@ -79,21 +79,6 @@ def get_clients():
     except Exception as err:
         print(f"\nCRITICAL GET CLIENTS ERROR: {err}\n")
         return jsonify({'error': str(err)}), 500
-    
-@app.route('/api/discounts', methods=['GET'])
-def get_discounts():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True) # Fixed cursor type
-        cursor.execute("SELECT * FROM discount")
-        discounts = cursor.fetchall()
-        return jsonify(discounts)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
 
 @app.route('/api/clients/<int:client_id>/toggle-status', methods=['PUT'])
 def toggle_client_status(client_id):
@@ -251,7 +236,7 @@ def add_visit():
     try:
         conn.start_transaction()
         
-        #STRICT TYPE UNWRAPPING(prevents the 'dict' crash)
+        #0.STRICT TYPE UNWRAPPING(prevents the 'dict' crash)
         raw_client = data.get('clientId')
         client_id = raw_client.get('id') if isinstance(raw_client, dict) else raw_client
         
@@ -260,7 +245,7 @@ def add_visit():
         if not client_id or not date_str:
             return jsonify({'error': 'Missing client ID or date'}), 400
         
-        #DESIGNS & IMAGE UPLOAD
+        #3. DESIGNS & IMAGE UPLOAD
         designs = data.get('designs') or {}
         image_b64 = data.get('imageBase64')
         image_file_path = None
@@ -324,14 +309,6 @@ def add_visit():
                 WHERE Design_ID = %s
             """, (design_id,))
         else:
-            #If no picture is uploaded, reuse text description entries to prevent database bloat
-            cursor.execute("SELECT Design_ID FROM design_inspo WHERE Design_Description = %s", (design_desc,))
-            design_row = cursor.fetchone()
-            if design_row:
-                design_id = design_row['Design_ID']
-            else:
-                cursor.execute("INSERT INTO design_inspo (Design_Description) VALUES (%s)", (design_desc,))
-                design_id = cursor.lastrowid
             # New design: insert with Date_Added, Times_Used = 1, Client_ID = current client
             cursor.execute("""
                 INSERT INTO design_inspo 
@@ -347,7 +324,7 @@ def add_visit():
         """, (client_id, design_id, date_str))
         appointment_id = cursor.lastrowid
 
-        #UPDATE NAIL SIZES
+        #2. UPDATE NAIL SIZES
         nail_sizes = data.get('nailSizes') or {}
         
         #Helper function to unwrap size objects if they arrive as dicts
@@ -388,18 +365,8 @@ def add_visit():
                 """, (client_id, l_thumb, l_index, l_middle, l_ring, l_pinky, 
                       r_thumb, r_index, r_middle, r_ring, r_pinky))
 
-       #Handle services, transaction, history & discounts
+	#1.Handle services, transaction and history
         selected_services = data.get('services') or []
-        discount_id = data.get('discountId')
-        discount_value = 0.0
-        
-        #Look up the discount percentage if selected
-        if discount_id:
-            cursor.execute("SELECT Discount_Value FROM discount WHERE Discount_ID = %s", (discount_id,))
-            discount_row = cursor.fetchone()
-            if discount_row and discount_row['Discount_Value']:
-                discount_value = float(discount_row['Discount_Value'])
-
         for srv in selected_services:
             srv_name = srv.get('name') if isinstance(srv, dict) else srv
             
@@ -408,17 +375,11 @@ def add_visit():
             
             if srv_row:
                 srv_id = srv_row['Service_ID']
-                base_amount = float(srv_row['Base_Price'])
-                
-                #Base Amount - Discount Amount = Total Amount
-                discount_amount = base_amount * (discount_value / 100.0) if discount_id else 0.0
-                total_amount = base_amount - discount_amount
                 
                 cursor.execute("""
-                    INSERT INTO transaction 
-                    (Appointment_ID, Client_ID, Service_ID, Transaction_Date, Base_Amount, Discount_ID, Discount_Amount, Total_Amount)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (appointment_id, client_id, srv_id, date_str, base_amount, discount_id, discount_amount, total_amount))
+                    INSERT INTO transaction (Appointment_ID, Client_ID, Service_ID, Transaction_Date, Total_Amount, Status)
+                    VALUES (%s, %s, %s, %s, %s, 'Completed')
+                """, (appointment_id, client_id, srv_id, date_str, srv_row['Base_Price']))
 
                 cursor.execute("""
                     INSERT INTO history (Client_ID, Service_ID, Visit_Date)
@@ -431,6 +392,99 @@ def add_visit():
     except Exception as e:
         conn.rollback()
         print(f"\nSQL COMMIT ERROR: {e}\n")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+#REST API: Get visit history for a client (or all visits)
+@app.route('/api/visits', methods=['GET'])
+def get_visits():
+    """Return all visits with service, design, and nail size info."""
+    client_id = request.args.get('clientId')
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        if client_id:
+            # Fetch visits for a specific client
+            cursor.execute("""
+                SELECT 
+                    a.Appointment_ID,
+                    a.Appointment_Date AS date,
+                    a.STATUS,
+                    d.Design_Description AS design_description,
+                    GROUP_CONCAT(DISTINCT s.Service_Name SEPARATOR ', ') AS service_names,
+                    GROUP_CONCAT(DISTINCT t.Total_Amount SEPARATOR ', ') AS service_prices,
+                    ns.L_Thumb_Size, ns.L_Index_Size, ns.L_Middle_Size, ns.L_Ring_Size, ns.L_Pinky_Size,
+                    ns.R_Thumb_Size, ns.R_Index_Size, ns.R_Middle_Size, ns.R_Ring_Size, ns.R_Pinky_Size
+                FROM appointment a
+                LEFT JOIN design_inspo d ON a.Design_ID = d.Design_ID
+                LEFT JOIN transaction t ON a.Appointment_ID = t.Appointment_ID
+                LEFT JOIN service s ON t.Service_ID = s.Service_ID
+                LEFT JOIN nail_size ns ON a.Client_ID = ns.Client_ID
+                WHERE a.Client_ID = %s
+                GROUP BY a.Appointment_ID
+                ORDER BY a.Appointment_Date DESC
+            """, (client_id,))
+        else:
+            # Fetch all visits (for analytics / recent visits)
+            cursor.execute("""
+                SELECT 
+                    a.Appointment_ID,
+                    a.Client_ID,
+                    a.Appointment_Date AS date,
+                    a.STATUS,
+                    d.Design_Description AS design_description,
+                    GROUP_CONCAT(DISTINCT s.Service_Name SEPARATOR ', ') AS service_names,
+                    GROUP_CONCAT(DISTINCT t.Total_Amount SEPARATOR ', ') AS service_prices
+                FROM appointment a
+                LEFT JOIN design_inspo d ON a.Design_ID = d.Design_ID
+                LEFT JOIN transaction t ON a.Appointment_ID = t.Appointment_ID
+                LEFT JOIN service s ON t.Service_ID = s.Service_ID
+                GROUP BY a.Appointment_ID
+                ORDER BY a.Appointment_Date DESC
+            """)
+        
+        rows = cursor.fetchall()
+        visits = []
+        for row in rows:
+            # Build services array
+            services = []
+            if row.get('service_names'):
+                names = row['service_names'].split(', ')
+                prices = row.get('service_prices', '').split(', ') if row.get('service_prices') else []
+                for i, name in enumerate(names):
+                    price = float(prices[i]) if i < len(prices) else 0
+                    services.append({'name': name, 'price': price})
+            
+            # Build designs object
+            designs = {}
+            if row.get('design_description') and row['design_description'] != 'N/A':
+                designs['all'] = row['design_description']
+            
+            # Build nail sizes object (if present)
+            nail_sizes = {}
+            for finger in ['L_Thumb_Size','L_Index_Size','L_Middle_Size','L_Ring_Size','L_Pinky_Size',
+                           'R_Thumb_Size','R_Index_Size','R_Middle_Size','R_Ring_Size','R_Pinky_Size']:
+                if row.get(finger) is not None:
+                    short = finger.replace('_Size','').replace('_','')
+                    nail_sizes[short] = float(row[finger])
+            
+            visit = {
+                'id': row['Appointment_ID'],
+                'clientId': row.get('Client_ID'),
+                'date': row['date'].strftime('%Y-%m-%d') if row['date'] else None,
+                'status': row['STATUS'] or 'Completed',
+                'services': services,
+                'designs': designs,
+                'nailSizes': nail_sizes
+            }
+            visits.append(visit)
+        
+        return jsonify(visits), 200
+    except Exception as e:
+        print(f"\nGET VISITS ERROR: {e}\n")
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
@@ -467,31 +521,32 @@ def get_analytics():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        #1. Calculate Monthly Revenue (Sum from transactions)
+        # 1. Calculate Monthly Revenue (Sum from transactions)
         cursor.execute("""
             SELECT SUM(Total_Amount) AS monthly_revenue 
             FROM transaction 
-            WHERE MONTH(Transaction_Date) = MONTH(CURRENT_DATE())
+            WHERE Status = 'Completed' 
+              AND MONTH(Transaction_Date) = MONTH(CURRENT_DATE())
               AND YEAR(Transaction_Date) = YEAR(CURRENT_DATE())
         """)
         rev_res = cursor.fetchone()
         monthly_revenue = float(rev_res['monthly_revenue']) if rev_res and rev_res['monthly_revenue'] else 0.0
         
-        #2. Count Cancellations(Count from appointments)
+        #2.Count Cancellations(Count from appointments)
         cursor.execute("SELECT COUNT(*) AS cancel_count FROM appointment WHERE Status = 'Cancelled'")
         cancel_res = cursor.fetchone()
         cancel_count = cancel_res['cancel_count'] if cancel_res else 0
         
-        #3. Total Visits(Count from history)
+        #3.Total Visits(Count from history)
         cursor.execute("SELECT COUNT(Visit_ID) AS visit_count FROM history")
         visit_res = cursor.fetchone()
         total_visits = visit_res['visit_count'] if visit_res else 0
 
-        #4. Top 3 Designs
+        #4.Top 3 Designs(Excluding "N/A" for multiple nail designs)
         cursor.execute("""
             SELECT 
                 Design_Description AS name, 
-                Times_Used AS count
+                SUM(Times_Used) AS count
             FROM design_inspo
             GROUP BY Design_Description
             ORDER BY count DESC
