@@ -79,6 +79,21 @@ def get_clients():
     except Exception as err:
         print(f"\nCRITICAL GET CLIENTS ERROR: {err}\n")
         return jsonify({'error': str(err)}), 500
+    
+@app.route('/api/discounts', methods=['GET'])
+def get_discounts():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True) # Fixed cursor type
+        cursor.execute("SELECT * FROM discount")
+        discounts = cursor.fetchall()
+        return jsonify(discounts)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 @app.route('/api/clients/<int:client_id>/toggle-status', methods=['PUT'])
 def toggle_client_status(client_id):
@@ -236,7 +251,7 @@ def add_visit():
     try:
         conn.start_transaction()
         
-        #0.STRICT TYPE UNWRAPPING(prevents the 'dict' crash)
+        #STRICT TYPE UNWRAPPING(prevents the 'dict' crash)
         raw_client = data.get('clientId')
         client_id = raw_client.get('id') if isinstance(raw_client, dict) else raw_client
         
@@ -245,7 +260,7 @@ def add_visit():
         if not client_id or not date_str:
             return jsonify({'error': 'Missing client ID or date'}), 400
         
-        #3. DESIGNS & IMAGE UPLOAD
+        #DESIGNS & IMAGE UPLOAD
         designs = data.get('designs') or {}
         image_b64 = data.get('imageBase64')
         image_file_path = None
@@ -300,7 +315,7 @@ def add_visit():
             """, (design_desc, image_file_path))
             design_id = cursor.lastrowid
         else:
-            #If no picture is uploaded, reuse existing text description entries to prevent database bloat
+            #If no picture is uploaded, reuse text description entries to prevent database bloat
             cursor.execute("SELECT Design_ID FROM design_inspo WHERE Design_Description = %s", (design_desc,))
             design_row = cursor.fetchone()
             if design_row:
@@ -316,7 +331,7 @@ def add_visit():
         """, (client_id, design_id, date_str))
         appointment_id = cursor.lastrowid
 
-        #2. UPDATE NAIL SIZES
+        #UPDATE NAIL SIZES
         nail_sizes = data.get('nailSizes') or {}
         
         #Helper function to unwrap size objects if they arrive as dicts
@@ -357,8 +372,18 @@ def add_visit():
                 """, (client_id, l_thumb, l_index, l_middle, l_ring, l_pinky, 
                       r_thumb, r_index, r_middle, r_ring, r_pinky))
 
-       #1.Handle services, transaction and history
+       #Handle services, transaction, history & discounts
         selected_services = data.get('services') or []
+        discount_id = data.get('discountId')
+        discount_value = 0.0
+        
+        #Look up the discount percentage if selected
+        if discount_id:
+            cursor.execute("SELECT Discount_Value FROM discount WHERE Discount_ID = %s", (discount_id,))
+            discount_row = cursor.fetchone()
+            if discount_row and discount_row['Discount_Value']:
+                discount_value = float(discount_row['Discount_Value'])
+
         for srv in selected_services:
             srv_name = srv.get('name') if isinstance(srv, dict) else srv
             
@@ -367,11 +392,17 @@ def add_visit():
             
             if srv_row:
                 srv_id = srv_row['Service_ID']
+                base_amount = float(srv_row['Base_Price'])
+                
+                #Base Amount - Discount Amount = Total Amount
+                discount_amount = base_amount * (discount_value / 100.0) if discount_id else 0.0
+                total_amount = base_amount - discount_amount
                 
                 cursor.execute("""
-                    INSERT INTO transaction (Appointment_ID, Client_ID, Service_ID, Transaction_Date, Total_Amount, Status)
-                    VALUES (%s, %s, %s, %s, %s, 'Completed')
-                """, (appointment_id, client_id, srv_id, date_str, srv_row['Base_Price']))
+                    INSERT INTO transaction 
+                    (Appointment_ID, Client_ID, Service_ID, Transaction_Date, Base_Amount, Discount_ID, Discount_Amount, Total_Amount)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (appointment_id, client_id, srv_id, date_str, base_amount, discount_id, discount_amount, total_amount))
 
                 cursor.execute("""
                     INSERT INTO history (Client_ID, Service_ID, Visit_Date)
@@ -420,28 +451,27 @@ def get_analytics():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # 1. Calculate Monthly Revenue (Sum from transactions)
+        #1. Calculate Monthly Revenue (Sum from transactions)
         cursor.execute("""
             SELECT SUM(Total_Amount) AS monthly_revenue 
             FROM transaction 
-            WHERE Status = 'Completed' 
-              AND MONTH(Transaction_Date) = MONTH(CURRENT_DATE())
+            WHERE MONTH(Transaction_Date) = MONTH(CURRENT_DATE())
               AND YEAR(Transaction_Date) = YEAR(CURRENT_DATE())
         """)
         rev_res = cursor.fetchone()
         monthly_revenue = float(rev_res['monthly_revenue']) if rev_res and rev_res['monthly_revenue'] else 0.0
         
-        #2.Count Cancellations(Count from appointments)
+        #2. Count Cancellations(Count from appointments)
         cursor.execute("SELECT COUNT(*) AS cancel_count FROM appointment WHERE Status = 'Cancelled'")
         cancel_res = cursor.fetchone()
         cancel_count = cancel_res['cancel_count'] if cancel_res else 0
         
-        #3.Total Visits(Count from history)
+        #3. Total Visits(Count from history)
         cursor.execute("SELECT COUNT(Visit_ID) AS visit_count FROM history")
         visit_res = cursor.fetchone()
         total_visits = visit_res['visit_count'] if visit_res else 0
 
-        #4.Top 3 Designs(Excluding "N/A" for multiple nail designs)
+        #4. Top 3 Designs
         cursor.execute("""
             SELECT 
                 Design_Description AS name, 
