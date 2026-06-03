@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 03, 2026 at 02:43 AM
+-- Generation Time: Jun 03, 2026 at 04:57 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -59,8 +59,10 @@ INSERT INTO `appointment` (`Appointment_ID`, `Client_ID`, `Design_ID`, `Appointm
 (14, 1001, 1, '2026-06-02', NULL, NULL, '2026-06-02 11:24:55', 'Completed'),
 (15, 1001, 8, '2026-06-02', NULL, NULL, '2026-06-02 11:29:24', 'Completed'),
 (16, 1001, 8, '2026-06-02', NULL, NULL, '2026-06-02 11:30:04', 'Completed'),
-(17, 1001, 9, '2026-06-02', NULL, NULL, '2026-06-03 00:03:00', 'Cancelled'),
-(18, 1004, 10, '2026-06-03', NULL, NULL, '2026-06-03 00:00:17', 'Completed');
+(17, 1001, 9, '2026-06-02', NULL, NULL, '2026-06-03 00:46:27', 'Completed'),
+(18, 1004, 10, '2026-06-03', NULL, NULL, '2026-06-03 00:49:57', 'Cancelled'),
+(19, 1005, 11, '2026-06-03', NULL, NULL, '2026-06-03 00:54:53', 'Completed'),
+(20, 1006, 6, '2026-06-03', NULL, NULL, '2026-06-03 01:54:53', 'Completed');
 
 -- --------------------------------------------------------
 
@@ -86,9 +88,10 @@ CREATE TABLE `client` (
 
 INSERT INTO `client` (`Client_ID`, `Full_Name`, `Phone`, `Email_Add`, `Soc_Med_Acc`, `Birthday`, `Address`, `Favorite_Music`, `Date_Registered`) VALUES
 (1001, 'Rens', '+12 111 222 1111', 'rens@gmail.com', '@facebook', '2000-01-01', 'Legaz', 'Rock', '2026-05-24'),
-(1002, 'Enzo Manzano', '+63 222 223 4141', '@example.com', '@instagram', '2003-02-01', 'Dmatagpuan City', 'kpop', '2026-05-24'),
 (1003, 'Aaron Beard', '+63 111 111 1111', 'beard@gmail.com', '@social', '2000-01-14', 'Legazpi, City', 'Classic', '2026-05-31'),
-(1004, 'Jane Doe', '+63 222 223 4141', '@example.com', '@social', '2000-01-01', 'Kilicao, Albay', 'Jpop', '2026-06-02');
+(1004, 'Jane Doe', '+63 222 223 4141', '@example.com', '@social', '2000-01-01', 'Kilicao, Albay', 'Jpop', '2026-06-02'),
+(1005, 'Cedric James', '+63 222 223 4141', '@example.com', '@instagram', '1989-10-02', 'Banquerohan, Albay', 'Classic', '2026-06-03'),
+(1006, 'Cris', '+63 111 111 1111', '@gmail.com', '@social', '2000-01-02', 'Kilicao, Albay', 'Classic', '2026-06-03');
 
 -- --------------------------------------------------------
 
@@ -115,11 +118,12 @@ INSERT INTO `design_inspo` (`Design_ID`, `Client_ID`, `Image_File_Path`, `Design
 (3, 1001, NULL, 'N/A', NULL, 1),
 (4, 1001, NULL, 'Floral', NULL, 3),
 (5, 1001, NULL, 'Forest', NULL, 2),
-(6, 1001, NULL, 'Red', NULL, 1),
+(6, 1001, NULL, 'Red', NULL, 2),
 (7, 1001, '/static/uploads/design_c579d7bd366749f8ad0ca0fb7a92865c.jpeg', 'Butterfly', NULL, 3),
 (8, 1001, NULL, 'Pink', NULL, 6),
 (9, 1001, NULL, 'Ocean', '2026-06-02 19:48:12', 1),
-(10, 1004, NULL, 'Purple', '2026-06-03 08:00:17', 1);
+(10, 1004, NULL, 'Purple', '2026-06-03 08:00:17', 1),
+(11, 1005, '/static/uploads/Ombre_Pink.jpeg', 'Ombre Pink', '2026-06-03 08:54:53', 1);
 
 -- --------------------------------------------------------
 
@@ -180,7 +184,12 @@ INSERT INTO `history` (`Visit_ID`, `Client_ID`, `Visit_Date`, `Service_ID`) VALU
 (19, 1001, '2026-06-02', 4),
 (20, 1001, '2026-06-02', 1),
 (21, 1004, '2026-06-03', 1),
-(22, 1004, '2026-06-03', 2);
+(22, 1004, '2026-06-03', 2),
+(23, 1005, '2026-06-03', 4),
+(24, 1005, '2026-06-03', 5),
+(25, 1006, '2026-06-03', 7),
+(26, 1006, '2026-06-03', 2),
+(27, 1006, '2026-06-03', 10);
 
 -- --------------------------------------------------------
 
@@ -215,7 +224,9 @@ INSERT INTO `nail_size` (`Size_ID`, `Client_ID`, `L_Thumb_Size`, `L_Index_Size`,
 (4, 1001, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, NULL),
 (5, 1001, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, NULL),
 (6, 1001, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, NULL),
-(8, 1004, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, '2026-06-03');
+(8, 1004, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, '2026-06-03'),
+(9, 1005, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, '2026-06-03'),
+(10, 1006, 20.0, 23.0, 22.0, 21.0, 25.0, 25.0, 20.0, 23.0, 24.0, 20.0, '2026-06-03');
 
 -- --------------------------------------------------------
 
@@ -291,7 +302,12 @@ INSERT INTO `transaction` (`Transaction_ID`, `Appointment_ID`, `Client_ID`, `Ser
 (19, 16, 1001, 4, '2026-06-01 16:00:00', NULL, NULL, NULL, 599.00),
 (20, 17, 1001, 1, '2026-06-01 16:00:00', NULL, NULL, NULL, 449.00),
 (21, 18, 1004, 1, '2026-06-02 16:00:00', 449.00, 1, 89.80, 359.20),
-(22, 18, 1004, 2, '2026-06-02 16:00:00', 499.00, 1, 99.80, 399.20);
+(22, 18, 1004, 2, '2026-06-02 16:00:00', 499.00, 1, 99.80, 399.20),
+(23, 19, 1005, 4, '2026-06-02 16:00:00', 599.00, 1, 99.99, 479.20),
+(24, 19, 1005, 5, '2026-06-02 16:00:00', 299.00, 1, 59.80, 239.20),
+(25, 20, 1006, 7, '2026-06-02 16:00:00', 399.00, 1, 79.80, 319.20),
+(26, 20, 1006, 2, '2026-06-02 16:00:00', 499.00, 1, 99.80, 399.20),
+(27, 20, 1006, 10, '2026-06-02 16:00:00', 200.00, 1, 40.00, 160.00);
 
 --
 -- Indexes for dumped tables
@@ -363,31 +379,31 @@ ALTER TABLE `transaction`
 -- AUTO_INCREMENT for table `appointment`
 --
 ALTER TABLE `appointment`
-  MODIFY `Appointment_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `Appointment_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `design_inspo`
 --
 ALTER TABLE `design_inspo`
-  MODIFY `Design_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `Design_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `history`
 --
 ALTER TABLE `history`
-  MODIFY `Visit_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `Visit_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `nail_size`
 --
 ALTER TABLE `nail_size`
-  MODIFY `Size_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `Size_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `transaction`
 --
 ALTER TABLE `transaction`
-  MODIFY `Transaction_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `Transaction_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- Constraints for dumped tables
