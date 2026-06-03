@@ -257,8 +257,14 @@
     margin-bottom: 1.5rem;
     width : 100%;
   }
+
+  .db-toolbar .filter-select {
+    width: 200px; 
+    flex-shrink: 0; 
+  }
+  
   .search-wrap { 
-    flex: 3; 
+    flex: 1; 
     position: relative; }
 
   .search-icon {
@@ -825,7 +831,7 @@
     <div class="db-toolbar">
       <div class="search-wrap">
         <span class="search-icon">⌕</span>
-        <input type="text" class="search-input" id="client-search" placeholder="Search by name, ID, or date registered…" oninput="renderClientTable()">
+        <input type="text" class="search-input" id="client-search" placeholder="Search by name, or ID…" oninput="renderClientTable()">
       </div>
       <select class="filter-select" id="status-filter" onchange="renderClientTable()">
         <option value="">Status</option>
